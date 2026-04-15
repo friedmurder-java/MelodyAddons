@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "mymod",
+  "version": "1.0.0",
+  "name": "MyMod",
+  "description": "Custom Hypixel Skyblock client mod — rarity glows and more.",
+  "authors": ["You"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.skyblockmod.client.SkyblockModClient"
+    ]
+  },
+  "mixins": [
+    "mymod.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.17.2",
+    "minecraft": "~1.21.10",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
