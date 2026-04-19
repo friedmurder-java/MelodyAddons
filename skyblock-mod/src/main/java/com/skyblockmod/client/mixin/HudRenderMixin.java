@@ -2,6 +2,7 @@ package com.skyblockmod.client.mixin;
 
 import com.skyblockmod.client.feature.ChatTriggerManager;
 import com.skyblockmod.client.feature.CocoonAlert;
+import com.skyblockmod.client.feature.HeightHud;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.client.render.RenderTickCounter;
@@ -17,5 +18,6 @@ public class HudRenderMixin {
     private void onRender(DrawContext ctx, RenderTickCounter tickCounter, CallbackInfo ci) {
         CocoonAlert.get().render(ctx, ctx.getScaledWindowWidth(), ctx.getScaledWindowHeight());
         ChatTriggerManager.get().render(ctx, ctx.getScaledWindowWidth(), ctx.getScaledWindowHeight());
+        HeightHud.get().render(ctx);
     }
 }

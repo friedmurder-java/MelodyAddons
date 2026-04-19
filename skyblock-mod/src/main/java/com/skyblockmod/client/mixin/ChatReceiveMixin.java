@@ -1,8 +1,10 @@
 package com.skyblockmod.client.mixin;
 
+import com.skyblockmod.client.feature.BerserkerTracker;
 import com.skyblockmod.client.feature.ChatTriggerManager;
 import com.skyblockmod.client.feature.CocoonAlert;
 import com.skyblockmod.client.feature.DungeonRngTracker;
+import com.skyblockmod.client.feature.LeapAnnouncer;
 import com.skyblockmod.client.feature.SlayerRngTracker;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
@@ -24,5 +26,7 @@ public class ChatReceiveMixin {
         DungeonRngTracker.get().onChatMessage(plain);
         CocoonAlert.get().onChatMessage(plain);
         ChatTriggerManager.get().onChatMessage(plain);
+        LeapAnnouncer.get().onChatMessage(plain);
+        BerserkerTracker.get().onChatMessage(plain);
     }
 }

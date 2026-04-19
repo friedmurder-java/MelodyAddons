@@ -86,7 +86,7 @@ public class SlayerRngTracker {
         if (pendingItem == null || pendingXpHad < 0) return;
 
         StringBuilder msg = new StringBuilder();
-        msg.append("§b[MyMod] §e✦ §6").append(pendingItem).append(" §edropped! ");
+        msg.append("§b[MelodyAddons] §e✦ §6").append(pendingItem).append(" §edropped! ");
 
         if (pendingXpMax > 0) {
             double pct = (pendingXpHad * 100.0) / pendingXpMax;

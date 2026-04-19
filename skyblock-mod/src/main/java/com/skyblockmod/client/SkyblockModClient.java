@@ -2,6 +2,7 @@ package com.skyblockmod.client;
 
 import com.skyblockmod.client.config.ModConfig;
 import com.skyblockmod.client.gui.ChatTriggerScreen;
+import com.skyblockmod.client.gui.HudEditorScreen;
 import com.skyblockmod.client.gui.ModMenuScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -12,26 +13,38 @@ import org.slf4j.LoggerFactory;
 
 public class SkyblockModClient implements ClientModInitializer {
 
-    public static final String MOD_ID = "mymod";
+    public static final String MOD_ID = "MelodyAddons";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private static boolean openMenuNextTick     = false;
+    private static boolean openMenuNextTick = false;
     private static boolean openTriggersNextTick = false;
+    private static boolean openHudEditorNextTick = false;
 
     @Override
     public void onInitializeClient() {
         ModConfig.get();
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-            dispatcher.register(ClientCommandManager.literal("oskar")
-                    .executes(context -> {
-                        openMenuNextTick = true;
-                        return 1;
-                    })
-                    .then(ClientCommandManager.literal("chattriggers").executes(context -> {
-                        openTriggersNextTick = true;
-                        return 1;
-                    }))
+            dispatcher.register(
+                    ClientCommandManager.literal("oskar")
+                            .executes(context -> {
+                                openMenuNextTick = true;
+                                return 1;
+                            })
+                            .then(
+                                    ClientCommandManager.literal("chattriggers")
+                                            .executes(context -> {
+                                                openTriggersNextTick = true;
+                                                return 1;
+                                            })
+                            )
+                            .then(
+                                    ClientCommandManager.literal("hud")
+                                            .executes(context -> {
+                                                openHudEditorNextTick = true;
+                                                return 1;
+                                            })
+                            )
             );
         });
 
@@ -44,8 +57,12 @@ public class SkyblockModClient implements ClientModInitializer {
                 openTriggersNextTick = false;
                 client.setScreen(new ChatTriggerScreen());
             }
+            if (openHudEditorNextTick && client.currentScreen == null) {
+                openHudEditorNextTick = false;
+                client.setScreen(new HudEditorScreen());
+            }
         });
 
-        LOGGER.info("[MyMod] Loaded! Type /oskar to open settings.");
+        LOGGER.info("[MelodyAddons] Loaded! Type /oskar to open settings.");
     }
 }

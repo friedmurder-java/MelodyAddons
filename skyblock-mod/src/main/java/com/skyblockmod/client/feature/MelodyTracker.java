@@ -54,7 +54,7 @@ public class MelodyTracker {
         String title = screen.getTitle().getString();
         if (!title.toLowerCase().contains("click the button on time")) return;
 
-        if (itemId.contains("lime_terracotta")) {
+        if (itemId.equals("minecraft:lime_terracotta")) {
             int row = slot / 9;
             if (row == lastRow) return;
             lastRow = row;
@@ -95,7 +95,7 @@ public class MelodyTracker {
 
     private void sendPc(String message) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.player != null)
-            mc.player.networkHandler.sendChatCommand("pc " + message);
+        if (mc.player != null && mc.getNetworkHandler() != null)
+            mc.getNetworkHandler().sendChatCommand("pc " + message);
     }
 }

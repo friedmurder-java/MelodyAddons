@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "mymod",
-  "version": "1.0.0",
+  "version": "1.5.9",
   "name": "MyMod",
   "description": "Custom Hypixel Skyblock client mod — rarity glows and more.",
   "authors": ["You"],

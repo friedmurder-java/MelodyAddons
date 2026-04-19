@@ -1,6 +1,7 @@
 package com.skyblockmod.client.gui;
 
 import com.skyblockmod.client.config.ModConfig;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -39,11 +40,13 @@ public class ModMenuScreen extends Screen {
     private static final int PADDING   = 14;
     private static final int HEADER_H  = 46;
     private static final int FOOTER_H  = 20;
+    private static final int HUD_BTN_W = 20;
 
     private static final String[] TABS = {"Misc", "Melody"};
 
-    private sealed interface Row permits ToggleRow, TextRow, PoolHeaderRow, PoolItemRow {}
+    private sealed interface Row permits ToggleRow, HudToggleRow, TextRow, PoolHeaderRow, PoolItemRow {}
     private record ToggleRow(String label, String description, Supplier<Boolean> getter, Consumer<Boolean> setter) implements Row {}
+    private record HudToggleRow(String label, String description, String hudId, Supplier<Boolean> getter, Consumer<Boolean> setter) implements Row {}
     private record TextRow(String label, String description, String placeholder, Supplier<String> getter, Consumer<String> setter) implements Row {}
     private record PoolHeaderRow() implements Row {}
     private record PoolItemRow(int index) implements Row {}
@@ -60,7 +63,7 @@ public class ModMenuScreen extends Screen {
     private boolean poolExpanded = true;
 
     public ModMenuScreen() {
-        super(Text.literal("MyMod"));
+        super(Text.literal("MelodyAddons"));
     }
 
     @Override
@@ -95,14 +98,24 @@ public class ModMenuScreen extends Screen {
         ModConfig cfg = ModConfig.get();
 
         if (activeTab == 0) {
+            addHudToggle("Height HUD", "Shows your current Y position on screen", "height",
+                    () -> cfg.heightHud, v -> { cfg.heightHud = v; cfg.save(); });
             addToggle("Rarity Glow", "Outline dropped items with rarity colour",
                     () -> cfg.rarityGlow, v -> { cfg.rarityGlow = v; cfg.save(); });
-            addToggle("Slayer RNG Tracker", "Show XP reset + drop % on slayer drops",
+            addToggle("Slayer RNG Tracker", "Show XP reset and drop % on slayer drops",
                     () -> cfg.slayerRngTracker, v -> { cfg.slayerRngTracker = v; cfg.save(); });
-            addToggle("Dungeon RNG Tracker", "Show drop % from tab on dungeon drops",
+            addToggle("Dungeon RNG Tracker", "Show drop % on dungeon drops",
                     () -> cfg.dungeonRngTracker, v -> { cfg.dungeonRngTracker = v; cfg.save(); });
+            addToggle("Blessed (+10%)", "Include Blessed attribute bonus in RNG XP calculation",
+                    () -> cfg.dungeonRngBlessed, v -> { cfg.dungeonRngBlessed = v; cfg.save(); });
             addToggle("Cocoon Alert", "Big COCOONED! text when you cocoon a slayer boss",
                     () -> cfg.cocoonAlert, v -> { cfg.cocoonAlert = v; cfg.save(); });
+            addToggle("Fullbright", "Maximum brightness",
+                    () -> cfg.fullbright, v -> {
+                        cfg.fullbright = v;
+                        if (!v) MinecraftClient.getInstance().options.getGamma().setValue(1.0);
+                        cfg.save();
+                    });
         } else {
             addToggle("Enable Melody Messages", "Send /pc messages during the terminal",
                     () -> cfg.melodyMessages, v -> { cfg.melodyMessages = v; cfg.save(); });
@@ -116,11 +129,27 @@ public class ModMenuScreen extends Screen {
                     rows.add(new PoolItemRow(i));
                 }
             }
+            addToggle("Leap Announce", "Send /pc message when you leap to a player",
+                    () -> cfg.leapAnnounce, v -> { cfg.leapAnnounce = v; cfg.save(); });
+            addTextField("Leap Message", "Use {player} for the player name",
+                    "e.g. Leaped to {player}!", () -> cfg.leapAnnounceMsg, v -> { cfg.leapAnnounceMsg = v; cfg.save(); });
+            addToggle("Berserker Tracker", "Send /pc messages for Berserker in F7/M7 Phase 3",
+                    () -> cfg.berserkerTracker, v -> { cfg.berserkerTracker = v; cfg.save(); });
+            addTextField("P3 Start Msg", "Sent when Phase 3 starts (Goldor)",
+                    "e.g. berserk do device!", () -> cfg.berserkerMsgStart, v -> { cfg.berserkerMsgStart = v; cfg.save(); });
+            addTextField("Device Not Done Msg", "Sent at S1 end if berserk didnt do device",
+                    "e.g. berserk missed device!", () -> cfg.berserkerMsgNotDone, v -> { cfg.berserkerMsgNotDone = v; cfg.save(); });
+            addTextField("S4 Start Msg", "Sent when Section 4 starts",
+                    "e.g. s4 starting!", () -> cfg.berserkerMsgS4, v -> { cfg.berserkerMsgS4 = v; cfg.save(); });
         }
     }
 
     private void addToggle(String label, String desc, Supplier<Boolean> getter, Consumer<Boolean> setter) {
         rows.add(new ToggleRow(label, desc, getter, setter));
+    }
+
+    private void addHudToggle(String label, String desc, String hudId, Supplier<Boolean> getter, Consumer<Boolean> setter) {
+        rows.add(new HudToggleRow(label, desc, hudId, getter, setter));
     }
 
     private void addTextField(String label, String desc, String placeholder, Supplier<String> getter, Consumer<String> setter) {
@@ -167,8 +196,6 @@ public class ModMenuScreen extends Screen {
         }
     }
 
-    // ── Animation helpers ─────────────────────────────────────────────────────
-
     private float getAnim(String key, boolean target) {
         float current = animStates.getOrDefault(key, target ? 1f : 0f);
         float speed = 0.12f;
@@ -190,8 +217,6 @@ public class ModMenuScreen extends Screen {
         int a = (int)(alpha * 255) & 0xFF;
         return (color & 0x00FFFFFF) | (a << 24);
     }
-
-    // ── Rendering ─────────────────────────────────────────────────────────────
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
@@ -217,7 +242,9 @@ public class ModMenuScreen extends Screen {
             int sy = y - scrollOffset;
 
             if (sy + rowH > panelY + 3 && sy < panelY + panelH - FOOTER_H) {
-                if (row instanceof ToggleRow tr) {
+                if (row instanceof HudToggleRow tr) {
+                    renderHudToggleRow(ctx, tr, sy, mouseX, mouseY);
+                } else if (row instanceof ToggleRow tr) {
                     renderToggleRow(ctx, tr, sy, mouseX, mouseY);
                 } else if (row instanceof TextRow tr) {
                     renderTextRow(ctx, tr, sy, fi, mouseX, mouseY);
@@ -268,7 +295,6 @@ public class ModMenuScreen extends Screen {
         int bg = lerpColor(TAB_COLOR, active ? TAB_ACTIVE : 0xFF16162E, t);
         ctx.fill(panelX, ty, panelX + TAB_W, ty + TAB_H, bg);
 
-        // Animated accent bar
         int accentW = (int)(at * 3);
         if (accentW > 0)
             ctx.fill(panelX + TAB_W - accentW, ty, panelX + TAB_W, ty + TAB_H, ACCENT);
@@ -280,7 +306,7 @@ public class ModMenuScreen extends Screen {
 
     private void renderContentHeader(DrawContext ctx) {
         int hy = panelY + 8;
-        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("§bMyMod §7— " + TABS[activeTab]),
+        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("§bMelodyAddons §7— " + TABS[activeTab]),
                 contentX + CONTENT_W / 2, hy, TEXT_COLOR);
         ctx.fill(contentX + PADDING, hy + 20, contentX + CONTENT_W - PADDING, hy + 21, 0xFF333355);
     }
@@ -297,6 +323,32 @@ public class ModMenuScreen extends Screen {
                 contentX + PADDING + 4, y + 8, TEXT_COLOR);
         ctx.drawTextWithShadow(textRenderer, Text.literal("§8" + row.description()),
                 contentX + PADDING + 4, y + 20, SUBTEXT_COLOR);
+
+        int sx = contentX + CONTENT_W - PADDING - TOGGLE_SW - 4;
+        int sy = y + (TOGGLE_H - TOGGLE_SH) / 2;
+        renderSwitch(ctx, sx, sy, row.getter().get(), row.label());
+    }
+
+    private void renderHudToggleRow(DrawContext ctx, HudToggleRow row, int y, int mouseX, int mouseY) {
+        boolean hovered = mouseX >= contentX + PADDING && mouseX <= contentX + CONTENT_W - PADDING
+                && mouseY >= y && mouseY < y + TOGGLE_H;
+
+        float ht = getAnim("toggle_hover_" + row.label(), hovered);
+        if (ht > 0) ctx.fill(contentX + PADDING, y, contentX + CONTENT_W - PADDING, y + TOGGLE_H,
+                lerpAlpha(0xFFFFFF, ht * 0.07f));
+
+        ctx.drawTextWithShadow(textRenderer, Text.literal(row.label()),
+                contentX + PADDING + 4, y + 8, TEXT_COLOR);
+        ctx.drawTextWithShadow(textRenderer, Text.literal("§8" + row.description()),
+                contentX + PADDING + 4, y + 20, SUBTEXT_COLOR);
+
+        int bx = contentX + CONTENT_W - PADDING - TOGGLE_SW - HUD_BTN_W - 10;
+        int by = y + (TOGGLE_H - 18) / 2;
+        boolean btnHovered = mouseX >= bx && mouseX <= bx + HUD_BTN_W && mouseY >= by && mouseY <= by + 18;
+        float bt = getAnim("hud_btn_" + row.hudId(), btnHovered);
+        ctx.fill(bx, by, bx + HUD_BTN_W, by + 18, lerpColor(0xFF2A2A4A, 0xFF4A90D9, bt));
+        ctx.fill(bx + 1, by + 1, bx + HUD_BTN_W - 1, by + 17, lerpColor(0xFF1A1A3A, 0xFF2A5A8A, bt));
+        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("⊹"), bx + HUD_BTN_W / 2, by + 5, TEXT_COLOR);
 
         int sx = contentX + CONTENT_W - PADDING - TOGGLE_SW - 4;
         int sy = y + (TOGGLE_H - TOGGLE_SH) / 2;
@@ -321,7 +373,7 @@ public class ModMenuScreen extends Screen {
         if (ht > 0) ctx.fill(contentX + PADDING, y, contentX + CONTENT_W - PADDING, y + SECTION_H,
                 lerpAlpha(0xFFFFFF, ht * 0.07f));
 
-        String arrow = poolExpanded ? "▼" : "▶";
+        String arrow = poolExpanded ? "v" : ">";
         int arrowX = contentX + CONTENT_W - PADDING - 30 - textRenderer.getWidth(arrow);
         ctx.drawTextWithShadow(textRenderer, Text.literal("§7Message Pool"),
                 contentX + PADDING + 4, y + (SECTION_H - 9) / 2, SUBTEXT_COLOR);
@@ -372,8 +424,6 @@ public class ModMenuScreen extends Screen {
         ctx.fill(barX, barY, barX + 3, barY + barH, ACCENT);
     }
 
-    // ── Input ─────────────────────────────────────────────────────────────────
-
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
         if (click.button() == 0) {
@@ -397,7 +447,20 @@ public class ModMenuScreen extends Screen {
                 int rowH = rowHeight(row);
                 int sy = y - scrollOffset;
 
-                if (row instanceof ToggleRow tr) {
+                if (row instanceof HudToggleRow tr) {
+                    int bx = contentX + CONTENT_W - PADDING - TOGGLE_SW - HUD_BTN_W - 10;
+                    int by = sy + (TOGGLE_H - 18) / 2;
+                    if ((int) click.x() >= bx && (int) click.x() <= bx + HUD_BTN_W
+                            && (int) click.y() >= by && (int) click.y() <= by + 18) {
+                        MinecraftClient.getInstance().setScreen(new HudEditorScreen());
+                        return true;
+                    }
+                    if ((int) click.x() >= contentX + PADDING && (int) click.x() <= contentX + CONTENT_W - PADDING
+                            && (int) click.y() >= sy && (int) click.y() < sy + rowH) {
+                        tr.setter().accept(!tr.getter().get());
+                        return true;
+                    }
+                } else if (row instanceof ToggleRow tr) {
                     if ((int) click.x() >= contentX + PADDING && (int) click.x() <= contentX + CONTENT_W - PADDING
                             && (int) click.y() >= sy && (int) click.y() < sy + rowH) {
                         tr.setter().accept(!tr.getter().get());

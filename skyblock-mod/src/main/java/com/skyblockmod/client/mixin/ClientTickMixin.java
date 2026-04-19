@@ -1,5 +1,6 @@
 package com.skyblockmod.client.mixin;
 
+import com.skyblockmod.client.config.ModConfig;
 import com.skyblockmod.client.feature.ChatTriggerManager;
 import com.skyblockmod.client.feature.CocoonAlert;
 import com.skyblockmod.client.feature.DungeonRngTracker;
@@ -21,5 +22,10 @@ public class ClientTickMixin {
         CocoonAlert.get().tick();
         MelodyTracker.get().tick();
         ChatTriggerManager.get().tick();
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.options != null && ModConfig.get().fullbright) {
+            mc.options.getGamma().setValue(Double.MAX_VALUE);
+        }
     }
 }

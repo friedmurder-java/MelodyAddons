@@ -2,71 +2,116 @@ package com.skyblockmod.client.feature;
 
 import com.skyblockmod.client.config.ModConfig;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.LoreComponent;
+import net.minecraft.item.ItemStack;
+import net.minecraft.screen.ScreenHandler;
 import net.minecraft.text.Text;
 
-import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Dungeon RNG Drop Tracker
- *
- * Reads the RNG Meter % directly from the tab list each tick, then the
- * moment a drop chat message fires it snaps the current % and prints:
- *   [MyMod] ✦ Hyperion dropped! You were at 84.7%.
- *
- * No expiry window needed — tab is always up to date.
- */
 public class DungeonRngTracker {
 
-    // ── Tab-list patterns ─────────────────────────────────────────────────────
-
-    /** "RNG Meter: 84.7% (Hyperion)"  or  "RNG Meter: 84.7%" */
-    private static final Pattern TAB_RNG_FULL = Pattern.compile(
-        "RNG Meter[:\\s]+([\\d.]+)%(?:\\s*\\((.+?)\\))?",
-        Pattern.CASE_INSENSITIVE
-    );
-
-    /** Fallback: "Hyperion   84.7%" */
-    private static final Pattern TAB_RNG_ITEM = Pattern.compile(
-        "^(.+?)\\s{2,}([\\d.]+)%\\s*$"
-    );
-
-    // ── Chat patterns ─────────────────────────────────────────────────────────
-
-    /** "RARE DROP! Hyperion (5,000,000 RNG Meter)" */
     private static final Pattern DROP_CHAT_FULL = Pattern.compile(
-        "RARE DROP!\\s+(.+?)\\s+\\([\\d,]+\\s+RNG Meter\\)",
-        Pattern.CASE_INSENSITIVE
+            "RARE DROP!\\s+(.+?)\\s+\\(([\\d,]+)\\s+RNG Meter\\)",
+            Pattern.CASE_INSENSITIVE
     );
-
-    /** "RNG METER - Hyperion" */
     private static final Pattern DROP_CHAT_SHORT = Pattern.compile(
-        "RNG METER\\s*-\\s*(.+)",
-        Pattern.CASE_INSENSITIVE
+            "RNG METER\\s*-\\s*(.+)",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern LORE_SCORE = Pattern.compile(
+            "Dungeon Score:\\s*([\\d,]+)\\s*/\\s*([\\d,]+)",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern TEAM_SCORE_CHAT = Pattern.compile(
+            "Team Score:\\s*([\\d,]+)\\s*\\(S[+]?\\)",
+            Pattern.CASE_INSENSITIVE
     );
 
-    // ── State ─────────────────────────────────────────────────────────────────
-
-    private double cachedPct  = -1;
+    private long cachedXp    = -1;
+    private long cachedMaxXp = -1;
     private String cachedItem = null;
 
-    // Singleton
     private static final DungeonRngTracker INSTANCE = new DungeonRngTracker();
     public static DungeonRngTracker get() { return INSTANCE; }
     private DungeonRngTracker() {}
 
-    // ── Tick ─────────────────────────────────────────────────────────────────
-
     public void tick() {
-        refreshTabCache();
-    }
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (!(mc.currentScreen instanceof HandledScreen<?> screen)) return;
+        String title = screen.getTitle().getString();
+        if (!title.toLowerCase().contains("catacombs rng meter")) return;
 
-    // ── Chat hook ─────────────────────────────────────────────────────────────
+        ScreenHandler handler = screen.getScreenHandler();
+
+        // First pass: look for selected item
+        for (int i = 0; i < handler.slots.size(); i++) {
+            ItemStack stack = handler.slots.get(i).getStack();
+            if (stack.isEmpty()) continue;
+
+            LoreComponent lore = stack.get(DataComponentTypes.LORE);
+            if (lore == null) continue;
+
+            boolean isSelected = false;
+            long xp = -1, maxXp = -1;
+
+            for (Text line : lore.lines()) {
+                String plain = line.getString();
+                if (plain.contains("SELECTED") || plain.contains("Selected")) isSelected = true;
+                Matcher m = LORE_SCORE.matcher(plain);
+                if (m.find()) {
+                    xp    = parseLong(m.group(1));
+                    maxXp = parseLong(m.group(2));
+                }
+            }
+
+            if (isSelected && xp >= 0) {
+                cachedXp    = xp;
+                cachedMaxXp = maxXp;
+                cachedItem  = stack.getName().getString();
+                return;
+            }
+        }
+
+        // Second pass: fallback to first valid item
+        for (int i = 0; i < handler.slots.size(); i++) {
+            ItemStack stack = handler.slots.get(i).getStack();
+            if (stack.isEmpty()) continue;
+
+            LoreComponent lore = stack.get(DataComponentTypes.LORE);
+            if (lore == null) continue;
+
+            for (Text line : lore.lines()) {
+                String plain = line.getString();
+                Matcher m = LORE_SCORE.matcher(plain);
+                if (m.find()) {
+                    cachedXp    = parseLong(m.group(1));
+                    cachedMaxXp = parseLong(m.group(2));
+                    cachedItem  = stack.getName().getString();
+                    return;
+                }
+            }
+        }
+    }
 
     public void onChatMessage(String raw) {
         if (!ModConfig.get().dungeonRngTracker) return;
+
+        // Detect end-of-run score
+        Matcher mScore = TEAM_SCORE_CHAT.matcher(raw);
+        if (mScore.find() && cachedXp >= 0) {
+            long score = parseLong(mScore.group(1));
+            double multiplier = ModConfig.get().dungeonRngBlessed ? 1.1 : 1.0;
+            long gained = (long)(score * multiplier);
+            cachedXp = cachedXp + gained; // allow over 100%
+            sendClientMessage(String.format(
+                    "§b[MelodyAddons] §7RNG Meter: §6%s §7/ §6%s §7(§a+%s XP§7)",
+                    fmt(cachedXp), fmt(cachedMaxXp), fmt(gained)));
+            return;
+        }
 
         Matcher mFull  = DROP_CHAT_FULL.matcher(raw);
         Matcher mShort = DROP_CHAT_SHORT.matcher(raw);
@@ -75,52 +120,23 @@ public class DungeonRngTracker {
         if (mShort.find()) { handleDrop(mShort.group(1).trim()); }
     }
 
-    // ── Internal ─────────────────────────────────────────────────────────────
-
     private void handleDrop(String itemFromChat) {
-        refreshTabCache(); // one final refresh at drop moment
-
-        String itemName = (cachedItem != null && !cachedItem.isEmpty())
-                ? cachedItem : itemFromChat;
+        String itemName = (cachedItem != null && !cachedItem.isEmpty()) ? cachedItem : itemFromChat;
 
         StringBuilder msg = new StringBuilder();
-        msg.append("§b[MyMod] §e✦ §6").append(itemName).append(" §edropped! ");
+        msg.append("§b[MelodyAddons] §e✦ §6").append(itemName).append(" §edropped! ");
 
-        if (cachedPct >= 0) {
-            msg.append(String.format("§7You were at §a%.1f%%§7.", cachedPct));
+        if (cachedXp >= 0 && cachedMaxXp > 0) {
+            double pct = (cachedXp * 100.0) / cachedMaxXp;
+            msg.append(String.format("§7You were at §a%.1f%%§7 — ", pct));
+            msg.append("§6").append(fmt(cachedXp))
+                    .append(" §7/ §6").append(fmt(cachedMaxXp))
+                    .append(" §7XP.");
         }
 
         sendClientMessage(msg.toString());
-    }
-
-    private void refreshTabCache() {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.getNetworkHandler() == null) return;
-
-        Collection<PlayerListEntry> entries = mc.getNetworkHandler().getPlayerList();
-        for (PlayerListEntry entry : entries) {
-            Text displayName = entry.getDisplayName();
-            if (displayName == null) continue;
-            String line = displayName.getString();
-
-            Matcher m1 = TAB_RNG_FULL.matcher(line);
-            if (m1.find()) {
-                cachedPct  = parseDouble(m1.group(1));
-                if (m1.group(2) != null) cachedItem = m1.group(2).trim();
-                return;
-            }
-
-            Matcher m2 = TAB_RNG_ITEM.matcher(line.trim());
-            if (m2.find()) {
-                double pct      = parseDouble(m2.group(2));
-                String candidate = m2.group(1).trim();
-                if (pct > 0 && pct <= 100 && candidate.length() > 2) {
-                    cachedPct  = pct;
-                    cachedItem = candidate;
-                    return;
-                }
-            }
-        }
+        // Reset after drop
+        cachedXp = 0;
     }
 
     private void sendClientMessage(String text) {
@@ -128,8 +144,10 @@ public class DungeonRngTracker {
         if (mc.player != null) mc.player.sendMessage(Text.literal(text), false);
     }
 
-    private static double parseDouble(String s) {
-        try { return Double.parseDouble(s.replace(",", "")); }
+    private static long parseLong(String s) {
+        try { return Long.parseLong(s.replace(",", "")); }
         catch (NumberFormatException e) { return -1; }
     }
+
+    private static String fmt(long n) { return String.format("%,d", n); }
 }

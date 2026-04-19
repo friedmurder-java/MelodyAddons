@@ -3,7 +3,46 @@ plugins {
     id 'maven-publish'
 }
 
-version = project.mod_version
+// Auto-increment version
+def versionProps = new Properties()
+def versionFile = file('version.properties')
+versionProps.load(versionFile.newDataInputStream())
+
+// Keep only the 2 newest versions of built JARs
+def libsDir = file('build/libs')
+if (libsDir.exists()) {
+    libsDir.listFiles()
+            .findAll { it.name.endsWith('.jar') }
+            .groupBy { it.name.replace('-sources.jar', '').replace('.jar', '') } // Group by version/name
+            .values()
+            .collectMany { it } // Flatten back to a list
+            .sort { it.lastModified() }
+            .reverse() // Newest first
+            .drop(4) // Keep the 2 newest pairs (2 main JARs + 2 sources = 4 files)
+            .each { it.delete() }
+}
+
+
+def major = versionProps['major'].toInteger()
+def minor = versionProps['minor'].toInteger()
+def patch = versionProps['patch'].toInteger()
+
+patch += 1
+if (patch >= 10) {
+    patch = 0
+    minor += 1
+}
+if (minor >= 10) {
+    minor = 0
+    major += 1
+}
+
+versionProps['major'] = major.toString()
+versionProps['minor'] = minor.toString()
+versionProps['patch'] = patch.toString()
+versionProps.store(versionFile.newWriter(), null)
+
+version = "${major}.${minor}.${patch}"
 group = project.maven_group
 
 base {
@@ -19,6 +58,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
     implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.formdev:flatlaf-extras:3.4.1'
 }
 
 processResources {
