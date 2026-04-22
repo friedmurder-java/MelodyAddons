@@ -60,7 +60,7 @@ public class ModMenuScreen extends Screen {
     private int scrollOffset = 0;
     private int maxScroll = 0;
     private int activeTab = 0;
-    private boolean poolExpanded = true;
+    private boolean poolExpanded = false;
 
     public ModMenuScreen() {
         super(Text.literal("MelodyAddons"));
@@ -135,12 +135,12 @@ public class ModMenuScreen extends Screen {
                     "e.g. Leaped to {player}!", () -> cfg.leapAnnounceMsg, v -> { cfg.leapAnnounceMsg = v; cfg.save(); });
             addToggle("Berserker Tracker", "Send /pc messages for Berserker in F7/M7 Phase 3",
                     () -> cfg.berserkerTracker, v -> { cfg.berserkerTracker = v; cfg.save(); });
-            addTextField("P3 Start Msg", "Sent when Phase 3 starts (Goldor)",
-                    "e.g. berserk do device!", () -> cfg.berserkerMsgStart, v -> { cfg.berserkerMsgStart = v; cfg.save(); });
-            addTextField("Device Not Done Msg", "Sent at S1 end if berserk didnt do device",
-                    "e.g. berserk missed device!", () -> cfg.berserkerMsgNotDone, v -> { cfg.berserkerMsgNotDone = v; cfg.save(); });
-            addTextField("S4 Start Msg", "Sent when Section 4 starts",
-                    "e.g. s4 starting!", () -> cfg.berserkerMsgS4, v -> { cfg.berserkerMsgS4 = v; cfg.save(); });
+            addTextField("P3 Device Done Msg", "Sent when berserk completes device. Use (bers) for name",
+                    "e.g. (bers) did device!", () -> cfg.berserkerMsgStart, v -> { cfg.berserkerMsgStart = v; cfg.save(); });
+            addTextField("S1 End Not Done Msg", "Sent at S1 end if berserk didnt do device. Use (bers)",
+                    "e.g. (bers) missed device!", () -> cfg.berserkerMsgNotDone, v -> { cfg.berserkerMsgNotDone = v; cfg.save(); });
+            addTextField("S4 Start Msg", "Sent when S4 starts if berserk never did device. Use (bers)",
+                    "e.g. (bers) still hasnt done device!", () -> cfg.berserkerMsgS4, v -> { cfg.berserkerMsgS4 = v; cfg.save(); });
         }
     }
 

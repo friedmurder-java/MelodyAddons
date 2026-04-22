@@ -17,6 +17,7 @@ public class ClientTickMixin {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void onTick(CallbackInfo ci) {
+        com.skyblockmod.client.feature.BerserkerTracker.get().tick();
         SlayerRngTracker.get().tick();
         DungeonRngTracker.get().tick();
         CocoonAlert.get().tick();
