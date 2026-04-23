@@ -21,11 +21,11 @@ public class ChatTriggerScreen extends Screen {
     private static final int FIELD_ON    = 0xFF4A90D9;
     private static final int FIELD_OFF   = 0xFF334466;
 
-    private static final int PANEL_W  = 480;
-    private static final int ROW_H    = 70;
-    private static final int HEADER_H = 50;
-    private static final int FOOTER_H = 20;
-    private static final int PADDING  = 16;
+    private static final int PANEL_W  = 500;
+    private static final int ROW_H    = 50;
+    private static final int HEADER_H = 55;
+    private static final int FOOTER_H = 36;
+    private static final int PADDING  = 14;
 
     private int panelX, panelY, panelH;
     private int scrollOffset = 0;
@@ -76,9 +76,9 @@ public class ChatTriggerScreen extends Screen {
             ModConfig.ChatTrigger t = cfg.chatTriggers.get(i);
             int iy = y - scrollOffset;
 
-            // Trigger field
+            // Trigger field - wider
             TextFieldWidget tf = new TextFieldWidget(textRenderer,
-                    panelX + PADDING, iy + 8, 160, 16, Text.literal("trigger"));
+                    panelX + PADDING, iy + (ROW_H - 16) / 2, 155, 16, Text.literal("trigger"));
             tf.setMaxLength(64);
             tf.setText(t.trigger);
             tf.setPlaceholder(Text.literal("§8Trigger word..."));
@@ -88,9 +88,9 @@ public class ChatTriggerScreen extends Screen {
             addDrawableChild(tf);
             triggerFields.add(tf);
 
-            // Output field
+            // Output field - wider
             TextFieldWidget of = new TextFieldWidget(textRenderer,
-                    panelX + PADDING + 170, iy + 8, 190, 16, Text.literal("output"));
+                    panelX + PADDING + 165, iy + (ROW_H - 16) / 2, 215, 16, Text.literal("output"));
             of.setMaxLength(64);
             of.setText(t.output);
             of.setPlaceholder(Text.literal("§8Display text..."));
@@ -101,7 +101,7 @@ public class ChatTriggerScreen extends Screen {
 
             // Ticks field
             TextFieldWidget tkf = new TextFieldWidget(textRenderer,
-                    panelX + PADDING + 370, iy + 8, 50, 16, Text.literal("ticks"));
+                    panelX + PADDING + 390, iy + (ROW_H - 16) / 2, 46, 16, Text.literal("ticks"));
             tkf.setMaxLength(5);
             tkf.setText(String.valueOf(t.ticks));
             tkf.setPlaceholder(Text.literal("§860"));
@@ -132,13 +132,13 @@ public class ChatTriggerScreen extends Screen {
         ctx.drawCenteredTextWithShadow(textRenderer,
                 Text.literal("§8Trigger | Output text | Ticks (duration)"),
                 panelX + PANEL_W / 2, hy + 14, SUBTEXT);
-        ctx.fill(panelX + PADDING, hy + 28, panelX + PANEL_W - PADDING, hy + 29, 0xFF333355);
+        ctx.fill(panelX + PADDING, hy + 26, panelX + PANEL_W - PADDING, hy + 27, 0xFF333355);
 
         // Column headers
         int chy = panelY + HEADER_H - 14;
         ctx.drawTextWithShadow(textRenderer, Text.literal("§7Trigger"), panelX + PADDING, chy, SUBTEXT);
-        ctx.drawTextWithShadow(textRenderer, Text.literal("§7Output"), panelX + PADDING + 170, chy, SUBTEXT);
-        ctx.drawTextWithShadow(textRenderer, Text.literal("§7Ticks"), panelX + PADDING + 370, chy, SUBTEXT);
+        ctx.drawTextWithShadow(textRenderer, Text.literal("§7Output"), panelX + PADDING + 165, chy, SUBTEXT);
+        ctx.drawTextWithShadow(textRenderer, Text.literal("§7Ticks"), panelX + PADDING + 390, chy, SUBTEXT);
 
         // Rows
         ModConfig cfg = ModConfig.get();
@@ -146,33 +146,28 @@ public class ChatTriggerScreen extends Screen {
         for (int i = 0; i < cfg.chatTriggers.size(); i++) {
             int sy = y - scrollOffset;
             if (sy + ROW_H > panelY + 3 && sy < panelY + panelH - FOOTER_H) {
-                // Row background
                 if (i % 2 == 0) ctx.fill(panelX + PADDING, sy, panelX + PANEL_W - PADDING, sy + ROW_H - 2, 0x08FFFFFF);
 
                 // Reposition fields
                 if (i < triggerFields.size()) {
-                    triggerFields.get(i).setY(sy + 8);
+                    triggerFields.get(i).setY(sy + (ROW_H - 16) / 2);
                     triggerFields.get(i).visible = true;
                 }
                 if (i < outputFields.size()) {
-                    outputFields.get(i).setY(sy + 8);
+                    outputFields.get(i).setY(sy + (ROW_H - 16) / 2);
                     outputFields.get(i).visible = true;
                 }
                 if (i < tickFields.size()) {
-                    tickFields.get(i).setY(sy + 8);
+                    tickFields.get(i).setY(sy + (ROW_H - 16) / 2);
                     tickFields.get(i).visible = true;
                 }
 
-                // X button
-                int bx = panelX + PANEL_W - PADDING - 18;
+                // X button — right side, vertically centered
+                int bx = panelX + PANEL_W - PADDING - 20;
                 int by = sy + (ROW_H - 16) / 2;
-                boolean hov = mouseX >= bx && mouseX <= bx + 16 && mouseY >= by && mouseY <= by + 16;
-                ctx.fill(bx, by, bx + 16, by + 16, hov ? 0xFFAA3A3A : 0xFF7A2A2A);
-                ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("§fx"), bx + 8, by + 4, TEXT_COLOR);
-
-                // Ticks label
-                ctx.drawTextWithShadow(textRenderer, Text.literal("§8ticks"),
-                        panelX + PADDING + 370, sy + 28, SUBTEXT);
+                boolean hov = mouseX >= bx && mouseX <= bx + 18 && mouseY >= by && mouseY <= by + 16;
+                ctx.fill(bx, by, bx + 18, by + 16, hov ? 0xFFAA3A3A : 0xFF7A2A2A);
+                ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("§fx"), bx + 9, by + 4, TEXT_COLOR);
             } else {
                 if (i < triggerFields.size()) triggerFields.get(i).visible = false;
                 if (i < outputFields.size())  outputFields.get(i).visible  = false;
@@ -183,18 +178,21 @@ public class ChatTriggerScreen extends Screen {
 
         ctx.disableScissor();
 
-        // Footer
+        // Footer — separate area below scissor
+        ctx.fill(panelX, panelY + panelH - FOOTER_H, panelX + PANEL_W, panelY + panelH - FOOTER_H + 1, 0xFF333355);
+
+        // + Add button centered
+        int addX = panelX + PANEL_W / 2 - 35;
+        int addY = panelY + panelH - FOOTER_H + 8;
+        boolean addHov = mouseX >= addX && mouseX <= addX + 70 && mouseY >= addY && mouseY <= addY + 14;
+        ctx.fill(addX, addY, addX + 70, addY + 14, addHov ? 0xFF4A9A4A : 0xFF3A7A3A);
+        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("§f+ Add"), addX + 35, addY + 3, TEXT_COLOR);
+
+        // Footer text
         ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("§8Scroll  ·  ESC to close"),
                 panelX + PANEL_W / 2, panelY + panelH - 12, SUBTEXT);
 
-        // + Add button
-        int addX = panelX + PANEL_W / 2 - 30;
-        int addY = panelY + panelH - 16;
-        ctx.fill(addX, addY, addX + 60, addY + 12, 0xFF3A7A3A);
-        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("§f+ Add"), addX + 30, addY + 2, TEXT_COLOR);
-
         if (maxScroll > 0) renderScrollbar(ctx);
-
         super.render(ctx, mouseX, mouseY, delta);
     }
 
@@ -215,9 +213,9 @@ public class ChatTriggerScreen extends Screen {
         // X buttons
         for (int i = 0; i < cfg.chatTriggers.size(); i++) {
             int sy = y - scrollOffset;
-            int bx = panelX + PANEL_W - PADDING - 18;
+            int bx = panelX + PANEL_W - PADDING - 20;
             int by = sy + (ROW_H - 16) / 2;
-            if ((int) click.x() >= bx && (int) click.x() <= bx + 16
+            if ((int) click.x() >= bx && (int) click.x() <= bx + 18
                     && (int) click.y() >= by && (int) click.y() <= by + 16) {
                 cfg.chatTriggers.remove(i);
                 cfg.save();
@@ -228,10 +226,10 @@ public class ChatTriggerScreen extends Screen {
         }
 
         // + Add button
-        int addX = panelX + PANEL_W / 2 - 30;
-        int addY = panelY + panelH - 16;
-        if ((int) click.x() >= addX && (int) click.x() <= addX + 60
-                && (int) click.y() >= addY && (int) click.y() <= addY + 12) {
+        int addX = panelX + PANEL_W / 2 - 35;
+        int addY = panelY + panelH - FOOTER_H + 8;
+        if ((int) click.x() >= addX && (int) click.x() <= addX + 70
+                && (int) click.y() >= addY && (int) click.y() <= addY + 14) {
             cfg.chatTriggers.add(new ModConfig.ChatTrigger("", "", 60));
             cfg.save();
             init();

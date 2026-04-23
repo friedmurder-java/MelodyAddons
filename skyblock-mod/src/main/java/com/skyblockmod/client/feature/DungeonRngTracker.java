@@ -22,8 +22,12 @@ public class DungeonRngTracker {
             "RNG METER\\s*-\\s*(.+)",
             Pattern.CASE_INSENSITIVE
     );
-    private static final Pattern LORE_SCORE = Pattern.compile(
-            "Dungeon Score:\\s*([\\d,]+)\\s*/\\s*([\\d,]+)",
+    private static final Pattern LORE_PROGRESS = Pattern.compile(
+            "([\\d,]+(?:\\.\\d+)?(?:[kKmM])?)\\s*/\\s*([\\d,]+(?:\\.\\d+)?(?:[kKmM])?)",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern LORE_FLOOR = Pattern.compile(
+            "Catacombs\\s*\\(([MF]\\d+)\\)",
             Pattern.CASE_INSENSITIVE
     );
     private static final Pattern TEAM_SCORE_CHAT = Pattern.compile(
@@ -31,13 +35,34 @@ public class DungeonRngTracker {
             Pattern.CASE_INSENSITIVE
     );
 
-    private long cachedXp    = -1;
-    private long cachedMaxXp = -1;
-    private String cachedItem = null;
+    private long cachedXp;
+    private long cachedMaxXp;
+    private String cachedItem;
+    private String cachedFloor;
 
     private static final DungeonRngTracker INSTANCE = new DungeonRngTracker();
     public static DungeonRngTracker get() { return INSTANCE; }
-    private DungeonRngTracker() {}
+
+    private DungeonRngTracker() {
+        ModConfig cfg = ModConfig.get();
+        cachedXp    = cfg.rngCachedXp;
+        cachedMaxXp = cfg.rngCachedMaxXp;
+        cachedItem  = cfg.rngCachedItem;
+        cachedFloor = cfg.rngCachedFloor;
+    }
+
+    public long getCachedXp()      { return cachedXp; }
+    public long getCachedMaxXp()   { return cachedMaxXp; }
+    public String getCachedFloor() { return cachedFloor; }
+
+    private void saveToConfig() {
+        ModConfig cfg = ModConfig.get();
+        cfg.rngCachedXp    = cachedXp;
+        cfg.rngCachedMaxXp = cachedMaxXp;
+        cfg.rngCachedItem  = cachedItem  != null ? cachedItem  : "";
+        cfg.rngCachedFloor = cachedFloor != null ? cachedFloor : "";
+        cfg.save();
+    }
 
     public void tick() {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -47,7 +72,6 @@ public class DungeonRngTracker {
 
         ScreenHandler handler = screen.getScreenHandler();
 
-        // First pass: look for selected item
         for (int i = 0; i < handler.slots.size(); i++) {
             ItemStack stack = handler.slots.get(i).getStack();
             if (stack.isEmpty()) continue;
@@ -56,27 +80,49 @@ public class DungeonRngTracker {
             if (lore == null) continue;
 
             boolean isSelected = false;
+            boolean nextLineIsItem = false;
             long xp = -1, maxXp = -1;
+            String floor = null;
+            String itemName = null;
 
             for (Text line : lore.lines()) {
                 String plain = line.getString();
-                if (plain.contains("SELECTED") || plain.contains("Selected")) isSelected = true;
-                Matcher m = LORE_SCORE.matcher(plain);
+
+                // Floor erkennen
+                Matcher mFloor = LORE_FLOOR.matcher(plain);
+                if (mFloor.find()) floor = mFloor.group(1).toUpperCase();
+
+                // "Selected Drop" → nächste Zeile ist der Item-Name
+                if (plain.trim().equalsIgnoreCase("Selected Drop")) {
+                    isSelected = true;
+                    nextLineIsItem = true;
+                    continue;
+                }
+                if (nextLineIsItem) {
+                    itemName = plain.trim();
+                    nextLineIsItem = false;
+                    continue;
+                }
+
+                // Progress lesen
+                Matcher m = LORE_PROGRESS.matcher(plain);
                 if (m.find()) {
-                    xp    = parseLong(m.group(1));
-                    maxXp = parseLong(m.group(2));
+                    xp    = parseNumber(m.group(1));
+                    maxXp = parseNumber(m.group(2));
                 }
             }
 
             if (isSelected && xp >= 0) {
                 cachedXp    = xp;
                 cachedMaxXp = maxXp;
-                cachedItem  = stack.getName().getString();
+                cachedItem  = itemName != null ? itemName : stack.getName().getString();
+                cachedFloor = floor;
+                saveToConfig();
                 return;
             }
         }
 
-        // Second pass: fallback to first valid item
+        // Fallback: erstes Item mit Progress
         for (int i = 0; i < handler.slots.size(); i++) {
             ItemStack stack = handler.slots.get(i).getStack();
             if (stack.isEmpty()) continue;
@@ -84,29 +130,51 @@ public class DungeonRngTracker {
             LoreComponent lore = stack.get(DataComponentTypes.LORE);
             if (lore == null) continue;
 
+            String floor = null;
             for (Text line : lore.lines()) {
                 String plain = line.getString();
-                Matcher m = LORE_SCORE.matcher(plain);
+                Matcher mFloor = LORE_FLOOR.matcher(plain);
+                if (mFloor.find()) floor = mFloor.group(1).toUpperCase();
+
+                Matcher m = LORE_PROGRESS.matcher(plain);
                 if (m.find()) {
-                    cachedXp    = parseLong(m.group(1));
-                    cachedMaxXp = parseLong(m.group(2));
+                    cachedXp    = parseNumber(m.group(1));
+                    cachedMaxXp = parseNumber(m.group(2));
                     cachedItem  = stack.getName().getString();
+                    cachedFloor = floor;
+                    saveToConfig();
                     return;
                 }
             }
         }
+
+        // Menü offen aber kein Item selected
+        cachedXp    = 0;
+        cachedMaxXp = 0;
+        cachedItem  = null;
+        cachedFloor = null;
+        saveToConfig();
     }
 
     public void onChatMessage(String raw) {
         if (!ModConfig.get().dungeonRngTracker) return;
 
-        // Detect end-of-run score
+        if (raw.contains("You reset your selected drop for your")) {
+            cachedXp    = 0;
+            cachedMaxXp = 0;
+            cachedItem  = null;
+            cachedFloor = null;
+            saveToConfig();
+            return;
+        }
+
         Matcher mScore = TEAM_SCORE_CHAT.matcher(raw);
         if (mScore.find() && cachedXp >= 0) {
-            long score = parseLong(mScore.group(1));
+            long score = parseNumber(mScore.group(1));
             double multiplier = ModConfig.get().dungeonRngBlessed ? 1.1 : 1.0;
             long gained = (long)(score * multiplier);
-            cachedXp = cachedXp + gained; // allow over 100%
+            cachedXp = cachedXp + gained;
+            saveToConfig();
             sendClientMessage(String.format(
                     "§b[MelodyAddons] §7RNG Meter: §6%s §7/ §6%s §7(§a+%s XP§7)",
                     fmt(cachedXp), fmt(cachedMaxXp), fmt(gained)));
@@ -135,8 +203,11 @@ public class DungeonRngTracker {
         }
 
         sendClientMessage(msg.toString());
-        // Reset after drop
-        cachedXp = 0;
+        cachedXp    = 0;
+        cachedMaxXp = 0;
+        cachedItem  = null;
+        cachedFloor = null;
+        saveToConfig();
     }
 
     private void sendClientMessage(String text) {
@@ -144,10 +215,21 @@ public class DungeonRngTracker {
         if (mc.player != null) mc.player.sendMessage(Text.literal(text), false);
     }
 
-    private static long parseLong(String s) {
-        try { return Long.parseLong(s.replace(",", "")); }
-        catch (NumberFormatException e) { return -1; }
-    }
-
     private static String fmt(long n) { return String.format("%,d", n); }
+
+    private static long parseNumber(String s) {
+        try {
+            s = s.replace(",", "").trim();
+            if (s.endsWith("M") || s.endsWith("m")) {
+                return (long)(Double.parseDouble(s.substring(0, s.length()-1)) * 1_000_000);
+            }
+            if (s.endsWith("k") || s.endsWith("K")) {
+                return (long)(Double.parseDouble(s.substring(0, s.length()-1)) * 1000);
+            }
+            if (s.contains(".")) {
+                return (long) Double.parseDouble(s);
+            }
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) { return -1; }
+    }
 }

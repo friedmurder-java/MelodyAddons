@@ -22,20 +22,28 @@ public class ModConfig {
     public boolean melodyMessages    = true;
     public boolean fullbright        = false;
     public boolean heightHud         = true;
-    public boolean leapAnnounce = false;
+    public boolean leapAnnounce      = false;
     public boolean berserkerTracker  = false;
 
-    public String  berserkerMsgStart  = "";
-    public String  berserkerMsgNotDone = "";
-    public String  berserkerMsgS4     = "";
-    public String leapAnnounceMsg = "Leaped to {player}!";
-    public String melodyMsgStart  = "";
-    public String melodyMsgClose  = "";
+    public String slayerRngCachedItem   = "";
+    public String slayerRngCachedSlayer = "";
+    public String rngCachedFloor = "";
+    public String berserkerMsgStart   = "";
+    public String berserkerMsgNotDone = "";
+    public String berserkerMsgS4      = "";
+    public String leapAnnounceMsg     = "Leaped to {player}!";
+    public String melodyMsgStart      = "";
+    public String melodyMsgClose      = "";
     public List<String> melodyMsgPool = new ArrayList<>();
 
     public List<ChatTrigger> chatTriggers = new ArrayList<>();
-
     public Map<String, HudElement> hudElements = new HashMap<>();
+
+    public long   slayerRngCachedXp     = -1;
+    public long   slayerRngCachedMaxXp  = -1;
+    public long   rngCachedXp    = -1;
+    public long   rngCachedMaxXp = -1;
+    public String rngCachedItem  = "";
 
     public static class ChatTrigger {
         public String trigger = "";
@@ -65,9 +73,12 @@ public class ModConfig {
             try (Reader r = Files.newBufferedReader(CONFIG_PATH)) {
                 ModConfig cfg = GSON.fromJson(r, ModConfig.class);
                 if (cfg != null) {
-                    if (cfg.melodyMsgPool  == null) cfg.melodyMsgPool  = new ArrayList<>();
-                    if (cfg.chatTriggers   == null) cfg.chatTriggers   = new ArrayList<>();
-                    if (cfg.hudElements    == null) cfg.hudElements    = new HashMap<>();
+                    if (cfg.melodyMsgPool == null) cfg.melodyMsgPool = new ArrayList<>();
+                    if (cfg.chatTriggers  == null) cfg.chatTriggers  = new ArrayList<>();
+                    if (cfg.hudElements   == null) cfg.hudElements   = new HashMap<>();
+                    if (cfg.rngCachedItem == null) cfg.rngCachedItem = "";
+                    if (cfg.slayerRngCachedItem   == null) cfg.slayerRngCachedItem   = "";
+                    if (cfg.slayerRngCachedSlayer == null) cfg.slayerRngCachedSlayer = "";
                     return cfg;
                 }
             } catch (IOException e) {

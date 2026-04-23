@@ -76,6 +76,7 @@ public class BerserkerTracker {
         if (mDevice.find()) {
             String playerName = mDevice.group(1).trim();
             if (isKnownBerserker(playerName)) {
+                inS1= true;
                 berserkerDone = true;
                 lastActiveBerserker = playerName;
                 if (!doneMsgSent && ModConfig.nonEmpty(cfg.berserkerMsgStart)) {
